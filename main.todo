@@ -1,0 +1,26 @@
+Trading Algo Model:
+     ✔ Create Structured Layer-based plan for Model @done(26-01-02 19:30)
+     
+     ☐ Data Collection and Segregation Pipeline
+       ☐ Data Collection API and List Important Metrics Needed
+       ☐ Populate dataset with all important data and variables
+       ☐ Timeseries Models for pattern recognition and market state
+     
+     ☐ Layer 1 | Context Extraction and Market State Analysis
+       ☐ Data Normalisation and Rolling Statistics Functions
+       ☐ Market Volatility Measurement Module
+       ☐ Lightweight Market Regime Classifier
+     
+     ☐ Layer 2 | Signal and Edge Extraction Functions
+       ☐ Feature Vector Assembler for Models or Heuristics
+       ☐ Directional bias estimator and Confidence/probability estimator
+       ☐ Expected payoff estimator
+     
+     ☐ Layer 3 | Decision Policies Algorithm and reinforcement learning model
+       ☐ State aggregator Module and Action Selection Policy
+       ☐ Reinforcement learning agent for learning decision behaviour over time
+
+     ☐ Layer 4 | Trade Management Layer
+       ☐ Position limit enforcement and Entry validation & execution checks
+       ☐ Stop-loss & take-profit logic
+       ☐ Drawdown & kill-switch controls and trade adjustment scopes
