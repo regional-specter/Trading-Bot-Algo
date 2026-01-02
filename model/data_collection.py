@@ -1,58 +1,102 @@
 import yfinance as yf
 import pandas as pd
-from pathlib import Path
+import numpy as np
+from rich.console import Console
+from rich.table import Table
 
-DATA_DIR = Path("data")
-DATA_DIR.mkdir(exist_ok=True)
+# CONFIG
+SYMBOL = "AAPL"
+INTERVAL = "1m"
+PERIOD = "1d"
+ROLLING_WINDOW = 14
 
-def fetch_and_clean(ticker, start, end, interval="1d"):
-    df = yf.download(
-        ticker,
-        start=start,
-        end=end,
+console = Console()
+
+# LAYER 1: RAW MARKET DATA
+def fetch_raw_market_data(symbol, interval, period):
+    """
+    Fetches raw OHLCV data from the API.
+    This is the only place external data enters the system.
+    """
+    data = yf.download(
+        tickers=symbol,
         interval=interval,
-        auto_adjust=True,
+        period=period,
         progress=False
     )
 
-    df = df.dropna()
-    df = df[~df.index.duplicated()]
-    df.index = pd.to_datetime(df.index)
+    data.reset_index(inplace=True)
+    data.columns = [c.lower().replace(" ", "_") for c in data.columns]
+    return data
+
+
+# LAYER 1.5: DERIVED MARKET CONTEXT
+def generate_derived_features(df, window):
+    """
+    Generates rolling statistics, volatility, returns,
+    and basic market context variables.
+    """
+
+    df["log_return"] = np.log(df["close"] / df["close"].shift(1))
+    df["simple_return"] = df["close"].pct_change()
+
+    df["rolling_mean"] = df["close"].rolling(window).mean()
+    df["rolling_std"] = df["close"].rolling(window).std()
+    df["rolling_zscore"] = (
+        (df["close"] - df["rolling_mean"]) / df["rolling_std"]
+    )
+
+    df["rolling_volatility"] = df["log_return"].rolling(window).std()
+
+    df["price_range"] = df["high"] - df["low"]
+    df["rolling_range"] = df["price_range"].rolling(window).mean()
+
+    df["volume_mean"] = df["volume"].rolling(window).mean()
+    df["volume_zscore"] = (
+        (df["volume"] - df["volume_mean"]) / df["volume"].rolling(window).std()
+    )
+
+    df["trend_strength"] = (
+        df["rolling_mean"].diff()
+    )
 
     return df
 
-
-def save_data(df, ticker):
-    path = DATA_DIR / f"{ticker}.csv"
-    df.to_csv(path)
-    return path
-
-
-def load_data(ticker):
-    path = DATA_DIR / f"{ticker}.csv"
-    df = pd.read_csv(path, index_col=0, parse_dates=True)
-
-    numeric_cols = ["Open", "High", "Low", "Close", "Volume"]
-    df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors="coerce")
-
-    df = df.dropna()
-    return df
+# STORAGE LAYER (DATASET / DB READY)
+def persist_dataset(df):
+    """
+    This function represents your storage layer.
+    Right now it simply returns the DataFrame,
+    but this is where SQLite, DuckDB, or Parquet fits later.
+    """
+    return df.dropna().reset_index(drop=True)
 
 
-def sample_time_window(df, window_size):
-    if len(df) <= window_size:
-        raise ValueError("Window size larger than dataset")
 
-    start = df.sample(1).index[0]
-    idx = df.index.get_loc(start)
+# TUI RENDERING LAYER
+def render_dataset_table(df, max_rows=10):
+    """
+    Renders the dataset as a TUI table using rich.
+    """
 
-    end = idx + window_size
-    if end >= len(df):
-        idx = len(df) - window_size
+    table = Table(title=f"Market Dataset | {SYMBOL}")
 
-    return df.iloc[idx:idx + window_size]
+    for col in df.columns:
+        table.add_column(col, justify="right", no_wrap=True)
 
+    for _, row in df.tail(max_rows).iterrows():
+        table.add_row(*[f"{v:.4f}" if isinstance(v, float) else str(v) for v in row])
+
+    console.clear()
+    console.print(table)
+
+
+# PIPELINE ORCHESTRATOR
+def run_pipeline():
+    raw_data = fetch_raw_market_data(SYMBOL, INTERVAL, PERIOD)
+    enriched_data = generate_derived_features(raw_data, ROLLING_WINDOW)
+    dataset = persist_dataset(enriched_data)
+    render_dataset_table(dataset)
 
 if __name__ == "__main__":
-    df = fetch_and_clean("AAPL", "2018-01-01", "2024-01-01")
-    save_data(df, "AAPL")
+    run_pipeline()
