@@ -6,7 +6,6 @@ Trading Algo Model:
      ☐ Data Collection and Segregation Pipeline
        ✔ Build raw market data ingestion @done(26-01-02 21:19)
        ☐ Define required metrics (OHLCV, returns, volume, timestamps)
-       ☐ Handle missing data, duplicates, and time alignment
        ☐ Store clean historical datasets
        ☐ Baseline time-series logic for early pattern detection
 
