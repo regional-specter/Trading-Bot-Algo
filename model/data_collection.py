@@ -15,8 +15,8 @@ console = Console()
 # LAYER 1: RAW MARKET DATA
 def fetch_raw_market_data(symbol, interval, period):
     """
-    Fetches raw OHLCV data from the API.
-    This is the only place external data enters the system.
+    Fetches raw OHLCV data from the API and normalizes column names.
+    Handles MultiIndex columns safely.
     """
     data = yf.download(
         tickers=symbol,
@@ -25,8 +25,19 @@ def fetch_raw_market_data(symbol, interval, period):
         progress=False
     )
 
-    data.reset_index(inplace=True)
-    data.columns = [c.lower().replace(" ", "_") for c in data.columns]
+    # Reset index so timestamp becomes a column
+    data = data.reset_index()
+
+    # Flatten MultiIndex columns if present
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = [col[0] for col in data.columns]
+
+    # Normalize column names
+    data.columns = [
+        str(c).lower().replace(" ", "_")
+        for c in data.columns
+    ]
+
     return data
 
 
@@ -74,18 +85,45 @@ def persist_dataset(df):
 
 
 # TUI RENDERING LAYER
-def render_dataset_table(df, max_rows=10):
+def render_dataset_table(df, lookback=3):
     """
-    Renders the dataset as a TUI table using rich.
+    Renders a narrow-terminal-friendly vertical table.
+    Rows = variables
+    Columns = recent timesteps
     """
 
-    table = Table(title=f"Market Dataset | {SYMBOL}")
+    recent = df.tail(lookback)
 
-    for col in df.columns:
-        table.add_column(col, justify="right", no_wrap=True)
+    table = Table(title=f"Market Snapshot | {SYMBOL}")
 
-    for _, row in df.tail(max_rows).iterrows():
-        table.add_row(*[f"{v:.4f}" if isinstance(v, float) else str(v) for v in row])
+    # First column: variable names
+    table.add_column("Variable", justify="left", no_wrap=True)
+
+    # Add one column per recent timestep
+    for ts in recent["datetime"]:
+        table.add_column(str(ts.time()), justify="right", no_wrap=True)
+
+    # Select variables to display (you control density here)
+    display_vars = [
+        "close",
+        "log_return",
+        "rolling_mean",
+        "rolling_std",
+        "rolling_zscore",
+        "rolling_volatility",
+        "volume",
+        "volume_zscore",
+        "trend_strength"
+    ]
+
+    for var in display_vars:
+        row = [var]
+        for val in recent[var]:
+            if isinstance(val, float):
+                row.append(f"{val:.4f}")
+            else:
+                row.append(str(val))
+        table.add_row(*row)
 
     console.clear()
     console.print(table)
