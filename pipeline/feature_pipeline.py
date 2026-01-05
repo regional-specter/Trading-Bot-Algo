@@ -1,5 +1,9 @@
 import pandas as pd
 import numpy as np
+from rich.console import Console
+from rich.table import Table
+
+console = Console()
 
 # Main entry point to generate all engineered features from raw OHLCV data
 def build_feature_set(df, window):
@@ -106,6 +110,56 @@ def compute_trend_features(df):
 
     return df
 
+# Renders recent engineered features in a vertical, terminal-friendly table
+def render_feature_table(df, lookback=3, title="Feature Snapshot"):
+    """
+    Rows = feature names
+    Columns = recent timesteps
+    """
+
+    # Select only the most recent timesteps
+    recent = df.tail(lookback)
+
+    # Create Rich table with contextual title
+    table = Table(title=title)
+
+    # First column lists feature names
+    table.add_column("Feature", justify="left", no_wrap=True)
+
+    # Add one column per recent timestamp
+    for ts in recent["datetime"]:
+        table.add_column(str(ts.time()), justify="right", no_wrap=True)
+
+    # Explicitly control which features are visualized
+    display_features = [
+        "close",
+        "log_return",
+        "simple_return",
+        "rolling_mean",
+        "rolling_std",
+        "rolling_zscore",
+        "rolling_volatility",
+        "price_range",
+        "rolling_range",
+        "volume",
+        "volume_zscore",
+        "trend_strength"
+    ]
+
+    # Render each feature as a row across recent timesteps
+    for feature in display_features:
+        row = [feature]
+        for val in recent[feature]:
+            # Format floats for dense terminal readability
+            if isinstance(val, float):
+                row.append(f"{val:.4f}")
+            else:
+                row.append(str(val))
+        table.add_row(*row)
+
+    # Print table to terminal
+    console.print(table)
+
 # Runs feature engineering when this file is executed directly
 def run():
     from data_pipeline import fetch_raw_market_data, SYMBOL, INTERVAL, PERIOD, ROLLING_WINDOW
@@ -119,8 +173,12 @@ def run():
     # Remove NaNs introduced by rolling windows
     feature_df = feature_df.dropna().reset_index(drop=True)
 
-    # Print output to confirm successful execution
-    print(feature_df.tail())
+    # Render engineered feature snapshot in terminal
+    render_feature_table(
+        feature_df,
+        lookback=3,
+        title="Engineered Feature Snapshot"
+    )
 
     return feature_df
 
