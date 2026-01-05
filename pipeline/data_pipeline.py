@@ -12,7 +12,7 @@ ROLLING_WINDOW = 14
 
 console = Console()
 
-# LAYER 1: RAW MARKET DATA
+# Raw Market Data
 def fetch_raw_market_data(symbol, interval, period):
     """
     Fetches raw OHLCV data from the API and normalizes column names.
@@ -41,7 +41,7 @@ def fetch_raw_market_data(symbol, interval, period):
     return data
 
 
-# LAYER 1.5: DERIVED MARKET CONTEXT
+# Derived Market Context
 def generate_derived_features(df, window):
     """
     Generates rolling statistics, volatility, returns,
@@ -73,7 +73,7 @@ def generate_derived_features(df, window):
 
     return df
 
-# STORAGE LAYER (DATASET / DB READY)
+# Database Initialisation
 def persist_dataset(df):
     """
     This function represents your storage layer.
@@ -83,8 +83,7 @@ def persist_dataset(df):
     return df.dropna().reset_index(drop=True)
 
 
-
-# TUI RENDERING LAYER
+# TUI Rendering
 def render_dataset_table(df, lookback=3):
     """
     Renders a narrow-terminal-friendly vertical table.
@@ -129,12 +128,12 @@ def render_dataset_table(df, lookback=3):
     console.print(table)
 
 
-# PIPELINE ORCHESTRATOR
-def run_pipeline():
+# Pipeline
+def run_feature_pipeline():
     raw_data = fetch_raw_market_data(SYMBOL, INTERVAL, PERIOD)
     enriched_data = generate_derived_features(raw_data, ROLLING_WINDOW)
     dataset = persist_dataset(enriched_data)
     render_dataset_table(dataset)
 
 if __name__ == "__main__":
-    run_pipeline()
+    run_feature_pipeline()
