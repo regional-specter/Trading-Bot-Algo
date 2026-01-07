@@ -162,7 +162,13 @@ def render_feature_table(df, lookback=3, title="Feature Snapshot"):
 
 # Runs feature engineering when this file is executed directly
 def run():
-    from data_pipeline import fetch_raw_market_data, SYMBOL, INTERVAL, PERIOD, ROLLING_WINDOW
+    from pipeline.data_pipeline import (
+        fetch_raw_market_data,
+        SYMBOL,
+        INTERVAL,
+        PERIOD,
+        ROLLING_WINDOW
+    )
 
     # Fetch clean raw OHLCV data
     raw_df = fetch_raw_market_data(SYMBOL, INTERVAL, PERIOD)
