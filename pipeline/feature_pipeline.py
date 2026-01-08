@@ -1,9 +1,24 @@
 import pandas as pd
+import os
 import numpy as np
 from rich.console import Console
 from rich.table import Table
 
 console = Console()
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+PROCESSED_DATA_FILE = os.path.join(DATA_DIR, "market_features.parquet")
+
+
+def save_processed_data(df: pd.DataFrame, file_path: str):
+    """
+    Saves the processed DataFrame to a parquet file.
+    It creates the directory if it doesn't exist.
+    """
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    df.to_parquet(file_path, index=False)
+    print(f"Processed data saved to {file_path}")
 
 # Main entry point to generate all engineered features from raw OHLCV data
 def build_feature_set(df, window):
@@ -150,11 +165,7 @@ def render_feature_table(df, lookback=3, title="Feature Snapshot"):
     for feature in display_features:
         row = [feature]
         for val in recent[feature]:
-            # Format floats for dense terminal readability
-            if isinstance(val, float):
-                row.append(f"{val:.4f}")
-            else:
-                row.append(str(val))
+            row.append(f"{val:.4f}" if isinstance(val, float) else str(val))
         table.add_row(*row)
 
     # Print table to terminal
@@ -162,7 +173,7 @@ def render_feature_table(df, lookback=3, title="Feature Snapshot"):
 
 # Runs feature engineering when this file is executed directly
 def run():
-    from pipeline.data_pipeline import (
+    from data_pipeline import (
         fetch_raw_market_data,
         SYMBOL,
         INTERVAL,
@@ -170,16 +181,37 @@ def run():
         ROLLING_WINDOW
     )
 
-    # Fetch clean raw OHLCV data
     raw_df = fetch_raw_market_data(SYMBOL, INTERVAL, PERIOD)
 
-    # Generate full feature set from raw data
+    # HARD FAIL — do NOT continue on bad data
+    if raw_df is None or raw_df.empty:
+        raise RuntimeError("Market data fetch failed — aborting pipeline")
+
+    # Normalize time axis ONCE
+    if isinstance(raw_df.index, pd.DatetimeIndex):
+        raw_df = raw_df.reset_index()
+
+    if "datetime" not in raw_df.columns:
+        for col in raw_df.columns:
+            if col.lower() in {"date", "time", "timestamp"}:
+                raw_df = raw_df.rename(columns={col: "datetime"})
+                break
+
+    if "datetime" not in raw_df.columns:
+        raise RuntimeError(f"No datetime column found. Columns: {raw_df.columns.tolist()}")
+
+    raw_df["datetime"] = pd.to_datetime(raw_df["datetime"])
+
     feature_df = build_feature_set(raw_df, ROLLING_WINDOW)
 
-    # Remove NaNs introduced by rolling windows
-    feature_df = feature_df.dropna().reset_index(drop=True)
+    feature_df = (
+        feature_df
+        .dropna(subset=["log_return", "rolling_mean", "rolling_std"])
+        .reset_index(drop=True)
+    )
 
-    # Render engineered feature snapshot in terminal
+    save_processed_data(feature_df, PROCESSED_DATA_FILE)
+
     render_feature_table(
         feature_df,
         lookback=3,
