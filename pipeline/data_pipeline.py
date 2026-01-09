@@ -124,7 +124,6 @@ def render_dataset_table(df, lookback=3):
                 row.append(str(val))
         table.add_row(*row)
 
-    console.clear()
     console.print(table)
 
 

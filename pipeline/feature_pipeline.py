@@ -181,6 +181,7 @@ def run():
         ROLLING_WINDOW
     )
 
+    # Fetch raw OHLCV market data
     raw_df = fetch_raw_market_data(SYMBOL, INTERVAL, PERIOD)
 
     # HARD FAIL — do NOT continue on bad data
@@ -198,20 +199,26 @@ def run():
                 break
 
     if "datetime" not in raw_df.columns:
-        raise RuntimeError(f"No datetime column found. Columns: {raw_df.columns.tolist()}")
+        raise RuntimeError(
+            f"No datetime column found. Columns: {raw_df.columns.tolist()}"
+        )
 
     raw_df["datetime"] = pd.to_datetime(raw_df["datetime"])
 
+    # Build full engineered feature set
     feature_df = build_feature_set(raw_df, ROLLING_WINDOW)
 
+    # Drop initial NaNs caused by rolling calculations
     feature_df = (
         feature_df
         .dropna(subset=["log_return", "rolling_mean", "rolling_std"])
         .reset_index(drop=True)
     )
 
+    # Persist engineered features to disk
     save_processed_data(feature_df, PROCESSED_DATA_FILE)
 
+    # Render recent features for sanity check
     render_feature_table(
         feature_df,
         lookback=3,
@@ -219,6 +226,7 @@ def run():
     )
 
     return feature_df
+
 
 
 if __name__ == "__main__":
