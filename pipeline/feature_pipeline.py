@@ -6,7 +6,7 @@ from rich.table import Table
 
 console = Console()
 
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 PROCESSED_DATA_FILE = os.path.join(DATA_DIR, "market_features.parquet")
 
