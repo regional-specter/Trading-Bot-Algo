@@ -129,14 +129,16 @@ def compute_trend_features(df):
     return df
 
 
-# Computes momentum indicators like RSI
-def compute_momentum_features(df, window=14):
-    delta = df["close"].diff()
-    gain = (delta.where(delta > 0, 0)).ewm(alpha=1/window, adjust=False).mean()
-    loss = (-delta.where(delta < 0, 0)).ewm(alpha=1/window, adjust=False).mean()
-    
-    rs = gain / loss
-    df["rsi"] = 100 - (100 / (1 + rs))
+# Computes momentum indicators like RSI for multiple timescales
+def compute_momentum_features(df):
+    windows = {'short': 5, 'medium': 14}
+    for name, window in windows.items():
+        delta = df["close"].diff()
+        gain = (delta.where(delta > 0, 0)).ewm(alpha=1/window, adjust=False).mean()
+        loss = (-delta.where(delta < 0, 0)).ewm(alpha=1/window, adjust=False).mean()
+        
+        rs = gain / loss
+        df[f"rsi_{window}"] = 100 - (100 / (1 + rs))
 
     return df
 
@@ -175,7 +177,8 @@ def render_feature_table(df, lookback=3, title="Feature Snapshot"):
         "volume",
         "volume_zscore",
         "trend_strength",
-        "rsi"
+        "rsi_5",
+        "rsi_14"
     ]
 
     # Render each feature as a row across recent timesteps
