@@ -44,6 +44,9 @@ def build_feature_set(df, window):
     # Compute simple trend and momentum proxies
     df = compute_trend_features(df)
 
+    # Compute momentum features
+    df = compute_momentum_features(df)
+
     return df
 
 
@@ -125,6 +128,19 @@ def compute_trend_features(df):
 
     return df
 
+
+# Computes momentum indicators like RSI
+def compute_momentum_features(df, window=14):
+    delta = df["close"].diff()
+    gain = (delta.where(delta > 0, 0)).ewm(alpha=1/window, adjust=False).mean()
+    loss = (-delta.where(delta < 0, 0)).ewm(alpha=1/window, adjust=False).mean()
+    
+    rs = gain / loss
+    df["rsi"] = 100 - (100 / (1 + rs))
+
+    return df
+
+
 # Renders recent engineered features in a vertical, terminal-friendly table
 def render_feature_table(df, lookback=3, title="Feature Snapshot"):
     """
@@ -158,7 +174,8 @@ def render_feature_table(df, lookback=3, title="Feature Snapshot"):
         "rolling_range",
         "volume",
         "volume_zscore",
-        "trend_strength"
+        "trend_strength",
+        "rsi"
     ]
 
     # Render each feature as a row across recent timesteps
