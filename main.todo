@@ -8,6 +8,9 @@ Trading Algo Model:
        ✔ Define required metrics (OHLCV, returns, volume, timestamps) @done(26-01-03 19:48)
        ✔ Store clean historical datasets @done(26-01-03 19:48)
        ☐ Baseline time-series logic for early pattern detection
+         ☐ Implement basic rule-based model or K-clustering for market regime detection
+         ☐ Signal Generation using feature engineered columns and decide a signal
+         ☐ Output a realtime or thorough market regime and directional bias
 
      ☐ Layer 1 | Market State and Context Extraction
        ☐ Data normalisation and resampling functions
