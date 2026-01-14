@@ -18,11 +18,10 @@ Trading Algo Model:
        ✔ Lightweight market regime classifier (trending, ranging, volatile, quiet) @done(26-01-14 10:14)
 
      ☐ Layer 2 | Signal and Edge Extraction
-       ☐ Signal Generation using feature engineered columns and decide a signal
-       ☐ Output a realtime or thorough market regime and directional bias
-       ☐ Feature vector assembler from Layer 1 outputs
-       ☐ Directional bias estimator (bullish, bearish, neutral)
-       ☐ Confidence or probability estimator
+       ✔ Signal Generation using feature engineered columns and decide a signal @done(26-01-14 19:53)
+       ✔ Output a realtime or thorough market regime and directional bias @done(26-01-14 19:53)
+       ✔ Directional bias estimator (bullish, bearish, neutral) @done(26-01-14 19:53)
+       ✔ Confidence or probability estimator @done(26-01-14 19:53)
        ☐ Expected payoff estimator (upside vs downside)
        ☐ Optional supervised learning models for edge estimation
 
