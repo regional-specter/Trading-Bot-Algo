@@ -3,23 +3,23 @@ Trading Algo Model:
      ✔ Define inputs, outputs, and data contracts between layers @done(26-01-02 21:19)
      ✔ Decide execution mode (research, paper trading, live) @done(26-01-02 21:19)
 
-     ☐ Data Collection and Segregation Pipeline
+     ✔ Data Collection and Segregation Pipeline @done(26-01-14 10:14)
        ✔ Build raw market data ingestion @done(26-01-02 21:19)
        ✔ Define required metrics (OHLCV, returns, volume, timestamps) @done(26-01-03 19:48)
        ✔ Store clean historical datasets @done(26-01-03 19:48)
-       ☐ Baseline time-series logic for early pattern detection
-         ☐ Implement basic rule-based model or K-clustering for market regime detection
-         ☐ Signal Generation using feature engineered columns and decide a signal
-         ☐ Output a realtime or thorough market regime and directional bias
+       ✔ Baseline time-series logic for early pattern detection @done(26-01-14 10:14)
+         ✔ Implement basic rule-based model or K-clustering for market regime detection @done(26-01-14 10:07)
 
-     ☐ Layer 1 | Market State and Context Extraction
-       ☐ Data normalisation and resampling functions
-       ☐ Rolling statistics engine (returns, moving averages, variance, z-scores)
-       ☐ Volatility measurement module (rolling std, ATR)
-       ☐ Trend and momentum descriptors (direction, slope, strength)
-       ☐ Lightweight market regime classifier (trending, ranging, volatile, quiet)
+     ✔ Layer 1 | Market State and Context Extraction @done(26-01-14 10:14)
+       ✔ Data normalisation and resampling functions @done(26-01-14 10:14)
+       ✔ Rolling statistics engine (returns, moving averages, variance, z-scores) @done(26-01-14 10:14)
+       ✔ Volatility measurement module (rolling std, ATR) @done(26-01-14 10:14)
+       ✔ Trend and momentum descriptors (direction, slope, strength) @done(26-01-14 10:14)
+       ✔ Lightweight market regime classifier (trending, ranging, volatile, quiet) @done(26-01-14 10:14)
 
      ☐ Layer 2 | Signal and Edge Extraction
+       ☐ Signal Generation using feature engineered columns and decide a signal
+       ☐ Output a realtime or thorough market regime and directional bias
        ☐ Feature vector assembler from Layer 1 outputs
        ☐ Directional bias estimator (bullish, bearish, neutral)
        ☐ Confidence or probability estimator
