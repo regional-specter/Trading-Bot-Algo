@@ -23,16 +23,15 @@ Trading Algo Model:
        ✔ Directional bias estimator (bullish, bearish, neutral) @done(26-01-14 19:53)
        ✔ Confidence or probability estimator @done(26-01-14 19:53)
        ☐ Expected payoff estimator (upside vs downside)
-       ☐ Optional supervised learning models for edge estimation
 
-     ☐ Layer 3 | Decision and Policy Layer
+     ☐ Layer 3.1 | Decision and Policy Layer
        ☐ State aggregator combining market, signal, and portfolio state
-       ☐ Action selection policy (enter, exit, hold, scale)
+       ✔ Action selection policy (enter, exit, hold, scale) @done(26-01-19 16:20)
        ☐ Position sizing logic based on confidence and volatility
        ☐ Timing preference logic (immediate vs delayed execution)
-       ☐ Reinforcement learning agent or rule-based policy
+       ✔ Reinforcement learning agent or rule-based policy @done(26-01-19 16:20)
 
-     ☐ Layer 4 | Risk and Trade Management
+     ☐ Layer 3.2 | Risk and Trade Management
        ☐ Position limit enforcement
        ☐ Entry validation and execution checks
        ☐ Stop-loss and take-profit logic
