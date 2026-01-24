@@ -8,42 +8,47 @@ from signals import generate_signals
 def run_backtest(
     df: pd.DataFrame, 
     initial_capital: float = 100000.0, 
-    invest_dollar_amount_per_trade: float = 5000.0, 
+    risk_per_trade_percentage: float = 0.01,
+    max_investment_per_trade_percentage: float = 0.25, # Max 25% of portfolio in one trade
     atr_multiplier: float = 2.0, 
     take_profit_percentage: float = 0.0075
 ) -> dict:
     """
-    Runs a backtest simulation on a DataFrame with trading signals.
+    Runs a backtest simulation with dynamic, capped position sizing.
 
     Args:
-        df (pd.DataFrame): DataFrame with 'close', 'signal', 'ATR_14' columns.
-        initial_capital (float): The starting capital for the backtest.
-        invest_dollar_amount_per_trade (float): Fixed dollar amount to invest in each trade.
-        atr_multiplier (float): Multiplier for ATR to set the trailing stop loss.
-        take_profit_percentage (float): Percentage gain at which to exit a trade.
+        df (pd.DataFrame): DataFrame with necessary columns.
+        initial_capital (float): Starting capital.
+        risk_per_trade_percentage (float): Portfolio percentage to risk per trade.
+        max_investment_per_trade_percentage (float): Max portfolio percentage for a single trade.
+        atr_multiplier (float): ATR multiplier for stop loss.
+        take_profit_percentage (float): Take profit percentage.
 
     Returns:
         dict: A dictionary containing performance metrics and the trades log.
     """
+
     
     required_cols = ['close', 'signal', 'ATR_14', 'regime', 'datetime']
     if any(col not in df.columns for col in required_cols):
         raise ValueError(f"Input DataFrame is missing one of the required columns: {required_cols}")
 
     # --- State Tracking & Logging ---
-    df['position_shares'] = 0
+    df['position_shares'] = 0.0
     df['cash'] = initial_capital
     df['portfolio_value'] = initial_capital
     trades_log = [] 
 
-    shares_in_position = 0
+    shares_in_position = 0.0
     buy_price_per_share = 0.0
     highest_price_since_buy = 0.0
 
     # --- Simulation Loop ---
     for i in range(1, len(df)):
+        # Carry over portfolio values from the previous day
         df.loc[i, 'cash'] = df.loc[i-1, 'cash']
         df.loc[i, 'position_shares'] = df.loc[i-1, 'position_shares']
+        df.loc[i, 'portfolio_value'] = df.loc[i-1, 'portfolio_value']
 
         current_close_price = df.loc[i, 'close']
         signal = df.loc[i, 'signal']
@@ -62,8 +67,10 @@ def run_backtest(
             if is_take_profit_hit or is_trailing_stop_hit or is_signal_exit:
                 exit_type = 'SELL (TP)' if is_take_profit_hit else ('SELL (Trail SL)' if is_trailing_stop_hit else 'SELL (Signal)')
                 
+                exit_value = current_close_price * shares_in_position
                 pnl_dollars = (current_close_price - buy_price_per_share) * shares_in_position
-                df.loc[i, 'cash'] += current_close_price * shares_in_position
+                
+                df.loc[i, 'cash'] += exit_value
                 df.loc[i, 'position_shares'] = 0
 
                 trades_log.append({
@@ -80,23 +87,43 @@ def run_backtest(
 
         # --- LOGIC WHEN NOT IN A POSITION ---
         elif shares_in_position == 0 and signal == 'Enter Long':
-            num_shares_to_buy = np.floor(invest_dollar_amount_per_trade / current_close_price)
-            if num_shares_to_buy > 0 and df.loc[i, 'cash'] >= num_shares_to_buy * current_close_price:
-                df.loc[i, 'position_shares'] = num_shares_to_buy
-                df.loc[i, 'cash'] -= num_shares_to_buy * current_close_price
+            
+            stop_loss_distance_per_share = current_atr * atr_multiplier
+            if stop_loss_distance_per_share > 0:
+                
+                current_portfolio_value = df.loc[i, 'portfolio_value']
 
-                buy_price_per_share = current_close_price 
-                shares_in_position = num_shares_to_buy
-                highest_price_since_buy = current_close_price
+                # 1. Calculate position size based on risk
+                dollar_amount_to_risk = current_portfolio_value * risk_per_trade_percentage
+                num_shares_based_on_risk = np.floor(dollar_amount_to_risk / stop_loss_distance_per_share)
+                
+                # 2. Calculate position size based on max investment
+                max_investment_dollars = current_portfolio_value * max_investment_per_trade_percentage
+                num_shares_based_on_max_investment = np.floor(max_investment_dollars / current_close_price)
 
-                trades_log.append({
-                    'Type': 'BUY', 
-                    'Entry Date': df.loc[i, 'datetime'],
-                    'Entry Price': current_close_price, 
-                    'Quantity': num_shares_to_buy
-                })
+                # 3. Use the smaller of the two position sizes
+                num_shares_to_buy = min(num_shares_based_on_risk, num_shares_based_on_max_investment)
+                
+                trade_cost = num_shares_to_buy * current_close_price
+                
+                if num_shares_to_buy > 0 and df.loc[i, 'cash'] >= trade_cost:
+                    df.loc[i, 'position_shares'] = num_shares_to_buy
+                    df.loc[i, 'cash'] -= trade_cost
 
+                    buy_price_per_share = current_close_price 
+                    shares_in_position = num_shares_to_buy
+                    highest_price_since_buy = current_close_price
+
+                    trades_log.append({
+                        'Type': 'BUY', 
+                        'Entry Date': df.loc[i, 'datetime'],
+                        'Entry Price': current_close_price, 
+                        'Quantity': num_shares_to_buy
+                    })
+        
+        # Update portfolio value at the end of the day
         df.loc[i, 'portfolio_value'] = df.loc[i, 'cash'] + (df.loc[i, 'position_shares'] * current_close_price)
+
 
     # --- Process and Finalize Trades Log ---
     processed_trades_log = []
@@ -144,17 +171,6 @@ if __name__ == '__main__':
         
         # --- Prepare Data ---
         print("1. Classifying regimes...")
-        # Define the cluster map you derived from Layer 1
-        cluster_to_regime_map = {
-            0: 'Ranging - Uptrend Bias', 
-            1: 'Uptrend - Impulse', 
-            2: 'Ranging - Downtrend Bias',
-            3: 'Downtrend - Impulse', 
-            4: 'Uptrend - Overbought', 
-            5: 'Ranging - Accumulation',
-            6: 'Volatile - Choppy', 
-            -1: 'Unknown'
-        }
         
         df_with_regimes = classify_regimes_with_kmeans(base_df)
         
@@ -182,8 +198,10 @@ if __name__ == '__main__':
             """
             # 1. Define the search space for your parameters
             trade_params = {
-                'atr_multiplier': trial.suggest_float('atr_multiplier', 1.0, 4.0),
-                'take_profit_percentage': trial.suggest_float('take_profit_percentage', 0.002, 0.03, log=True)
+                'atr_multiplier': trial.suggest_float('atr_multiplier', 1.0, 5.0),
+                'take_profit_percentage': trial.suggest_float('take_profit_percentage', 0.005, 0.05, log=True),
+                'risk_per_trade_percentage': trial.suggest_float('risk_per_trade_percentage', 0.005, 0.05, log=True),
+                'max_investment_per_trade_percentage': trial.suggest_float('max_investment_per_trade_percentage', 0.1, 0.5)
             }
             
             signal_params = {
@@ -201,17 +219,25 @@ if __name__ == '__main__':
             results = run_backtest(
                 df=df_with_signals,
                 atr_multiplier=trade_params['atr_multiplier'],
-                take_profit_percentage=trade_params['take_profit_percentage']
+                take_profit_percentage=trade_params['take_profit_percentage'],
+                risk_per_trade_percentage=trade_params['risk_per_trade_percentage'],
+                max_investment_per_trade_percentage=trade_params['max_investment_per_trade_percentage']
             )
             
             # 4. Return the value to be maximized (your objective)
             profit = results['total_return_pct']
             drawdown = abs(results['max_drawdown_pct'])
-            
+            num_trades = len(results['trades_log'])
+
+            # Penalize strategies that don't trade
+            if num_trades < 10:
+                return -1000.0
+
             if drawdown < 0.1: 
                 drawdown = 0.1
             
-            score = profit / drawdown 
+            # Score should reward profit and number of trades, but penalize drawdown
+            score = (profit / drawdown) * (1 + num_trades / 100.0) # Simple scaling factor
             
             if profit <= 0:
                 return float(profit)
@@ -221,7 +247,7 @@ if __name__ == '__main__':
         # --- Create and run the optimization study ---
         print("\n--- Starting Bayesian Optimization with Optuna (200 Trials) ---")
         study = optuna.create_study(direction='maximize')
-        study.optimize(objective, n_trials=200)
+        study.optimize(objective, n_trials=200, show_progress_bar=True)
 
         # --- Print the results ---
         print("\n--- Optimization Complete ---")
@@ -239,19 +265,24 @@ if __name__ == '__main__':
         best_params = best_trial.params
         
         final_signal_params = {
-            'uptrend_impulse_vol_z_threshold': best_params['uptrend_impulse_vol_z_threshold'],
-            'accumulation_vol_z_threshold': best_params['accumulation_vol_z_threshold'],
-            'pullback_rsi_5_lt': best_params['pullback_rsi_5_lt'],
-            'pullback_rsi_14_gt': best_params['pullback_rsi_14_gt'],
-            'ranging_uptrend_vol_z_threshold': best_params['ranging_uptrend_vol_z_threshold']
+            'uptrend_impulse_vol_z_threshold': best_params.get('uptrend_impulse_vol_z_threshold'),
+            'accumulation_vol_z_threshold': best_params.get('accumulation_vol_z_threshold'),
+            'pullback_rsi_5_lt': best_params.get('pullback_rsi_5_lt'),
+            'pullback_rsi_14_gt': best_params.get('pullback_rsi_14_gt'),
+            'ranging_uptrend_vol_z_threshold': best_params.get('ranging_uptrend_vol_z_threshold')
         }
         
         final_df_with_signals = generate_signals(df_with_regimes.copy(), signal_params=final_signal_params)
         
+        print("\n--- Signal Counts with Best Parameters ---")
+        print(final_df_with_signals['signal'].value_counts())
+        
         final_results = run_backtest(
             df=final_df_with_signals,
-            atr_multiplier=best_params['atr_multiplier'],
-            take_profit_percentage=best_params['take_profit_percentage']
+            atr_multiplier=best_params.get('atr_multiplier'),
+            take_profit_percentage=best_params.get('take_profit_percentage'),
+            risk_per_trade_percentage=best_params.get('risk_per_trade_percentage'),
+            max_investment_per_trade_percentage=best_params.get('max_investment_per_trade_percentage')
         )
         
         print("\n  --- Final Performance Metrics ---")
