@@ -9,12 +9,12 @@ def run_backtest(
     df: pd.DataFrame, 
     initial_capital: float = 100000.0, 
     risk_per_trade_percentage: float = 0.01,
-    max_investment_per_trade_percentage: float = 0.25, # Max 25% of portfolio in one trade
+    max_investment_per_trade_percentage: float = 0.25,
     atr_multiplier: float = 2.0, 
-    take_profit_percentage: float = 0.0075
+    take_profit_atr_multiplier: float = 3.0
 ) -> dict:
     """
-    Runs a backtest simulation with dynamic, capped position sizing.
+    Runs a backtest simulation with dynamic, capped position sizing and dynamic take profit.
 
     Args:
         df (pd.DataFrame): DataFrame with necessary columns.
@@ -22,7 +22,7 @@ def run_backtest(
         risk_per_trade_percentage (float): Portfolio percentage to risk per trade.
         max_investment_per_trade_percentage (float): Max portfolio percentage for a single trade.
         atr_multiplier (float): ATR multiplier for stop loss.
-        take_profit_percentage (float): Take profit percentage.
+        take_profit_atr_multiplier (float): ATR multiplier for take profit.
 
     Returns:
         dict: A dictionary containing performance metrics and the trades log.
@@ -42,6 +42,7 @@ def run_backtest(
     shares_in_position = 0.0
     buy_price_per_share = 0.0
     highest_price_since_buy = 0.0
+    entry_atr = 0.0
 
     # --- Simulation Loop ---
     for i in range(1, len(df)):
@@ -59,7 +60,7 @@ def run_backtest(
         if shares_in_position > 0:
             highest_price_since_buy = max(highest_price_since_buy, current_close_price)
             trailing_stop_price = highest_price_since_buy - (current_atr * atr_multiplier)
-            take_profit_price = buy_price_per_share * (1 + take_profit_percentage)
+            take_profit_price = buy_price_per_share + (entry_atr * take_profit_atr_multiplier)
 
             is_take_profit_hit = current_close_price >= take_profit_price
             is_trailing_stop_hit = current_close_price <= trailing_stop_price
@@ -84,7 +85,7 @@ def run_backtest(
                     'Signal': signal if exit_type == 'SELL (Signal)' else exit_type,
                     'Regime': df.loc[i, 'regime']
                 })
-                shares_in_position, buy_price_per_share, highest_price_since_buy = 0, 0, 0
+                shares_in_position, buy_price_per_share, highest_price_since_buy, entry_atr = 0, 0, 0, 0
 
         # --- LOGIC WHEN NOT IN A POSITION ---
         elif shares_in_position == 0 and signal == 'Enter Long':
@@ -114,6 +115,7 @@ def run_backtest(
                     buy_price_per_share = current_close_price 
                     shares_in_position = num_shares_to_buy
                     highest_price_since_buy = current_close_price
+                    entry_atr = current_atr
 
                     trades_log.append({
                         'Type': 'BUY', 
@@ -200,7 +202,7 @@ if __name__ == '__main__':
             # 1. Define the search space for your parameters
             trade_params = {
                 'atr_multiplier': trial.suggest_float('atr_multiplier', 1.0, 5.0),
-                'take_profit_percentage': trial.suggest_float('take_profit_percentage', 0.005, 0.05, log=True),
+                'take_profit_atr_multiplier': trial.suggest_float('take_profit_atr_multiplier', 1.0, 10.0),
                 'risk_per_trade_percentage': trial.suggest_float('risk_per_trade_percentage', 0.005, 0.05, log=True),
                 'max_investment_per_trade_percentage': trial.suggest_float('max_investment_per_trade_percentage', 0.1, 0.5)
             }
@@ -224,7 +226,7 @@ if __name__ == '__main__':
             results = run_backtest(
                 df=df_with_signals,
                 atr_multiplier=trade_params['atr_multiplier'],
-                take_profit_percentage=trade_params['take_profit_percentage'],
+                take_profit_atr_multiplier=trade_params['take_profit_atr_multiplier'],
                 risk_per_trade_percentage=trade_params['risk_per_trade_percentage'],
                 max_investment_per_trade_percentage=trade_params['max_investment_per_trade_percentage']
             )
@@ -289,7 +291,7 @@ if __name__ == '__main__':
         final_results = run_backtest(
             df=final_df_with_signals,
             atr_multiplier=best_params.get('atr_multiplier'),
-            take_profit_percentage=best_params.get('take_profit_percentage'),
+            take_profit_atr_multiplier=best_params.get('take_profit_atr_multiplier'),
             risk_per_trade_percentage=best_params.get('risk_per_trade_percentage'),
             max_investment_per_trade_percentage=best_params.get('max_investment_per_trade_percentage')
         )
