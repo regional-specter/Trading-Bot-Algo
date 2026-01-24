@@ -21,36 +21,35 @@ def generate_signals(df_input: pd.DataFrame, signal_params: dict = None) -> pd.D
             'accumulation_vol_z_threshold': 0.5,
             'pullback_rsi_5_lt': 50,
             'pullback_rsi_14_gt': 60,
-            'ranging_uptrend_vol_z_threshold': 0.0
+            'ranging_uptrend_vol_z_threshold': 0.0,
+            'uptrend_impulse_confidence': 0.8,
+            'accumulation_confidence': 0.7,
+            'pullback_confidence': 0.6,
+            'ranging_uptrend_confidence': 0.5
         }
 
     df = df_input.copy()
     signals = pd.Series(index=df.index, dtype=str, name='signal').fillna('Neutral')
+    confidence = pd.Series(index=df.index, dtype=float, name='signal_confidence').fillna(0.0)
 
     df['rsi_5_prev'] = df['rsi_5'].shift(1) 
 
     # --- Entry Signal Logic ---
-    signals[
-        (df['regime'] == 'Uptrend - Impulse') & 
-        (df['volume_zscore'] > signal_params['uptrend_impulse_vol_z_threshold'])
-    ] = 'Enter Long'
+    uptrend_impulse_mask = (df['regime'] == 'Uptrend - Impulse') & (df['volume_zscore'] > signal_params['uptrend_impulse_vol_z_threshold'])
+    signals[uptrend_impulse_mask] = 'Enter Long'
+    confidence[uptrend_impulse_mask] = signal_params['uptrend_impulse_confidence']
     
-    signals[
-        (df['regime'] == 'Ranging - Accumulation') & 
-        (df['volume_zscore'] > signal_params['accumulation_vol_z_threshold'])
-    ] = 'Enter Long'
+    accumulation_mask = (df['regime'] == 'Ranging - Accumulation') & (df['volume_zscore'] > signal_params['accumulation_vol_z_threshold'])
+    signals[accumulation_mask] = 'Enter Long'
+    confidence[accumulation_mask] = signal_params['accumulation_confidence']
+
+    pullback_mask = (df['regime'] == 'Uptrend - Pullback') & (df['rsi_5'] > df['rsi_5_prev']) & (df['rsi_5'] < signal_params['pullback_rsi_5_lt']) & (df['rsi_14'] > signal_params['pullback_rsi_14_gt'])
+    signals[pullback_mask] = 'Enter Long'
+    confidence[pullback_mask] = signal_params['pullback_confidence']
     
-    signals[
-        (df['regime'] == 'Uptrend - Pullback') & 
-        (df['rsi_5'] > df['rsi_5_prev']) &    
-        (df['rsi_5'] < signal_params['pullback_rsi_5_lt']) &                   
-        (df['rsi_14'] > signal_params['pullback_rsi_14_gt'])                    
-    ] = 'Enter Long'
-    
-    signals[
-        (df['regime'] == 'Ranging - Uptrend Bias') & 
-        (df['volume_zscore'] > signal_params['ranging_uptrend_vol_z_threshold'])
-    ] = 'Enter Long'
+    ranging_uptrend_mask = (df['regime'] == 'Ranging - Uptrend Bias') & (df['volume_zscore'] > signal_params['ranging_uptrend_vol_z_threshold'])
+    signals[ranging_uptrend_mask] = 'Enter Long'
+    confidence[ranging_uptrend_mask] = signal_params['ranging_uptrend_confidence']
 
     # --- Exit Signal Logic ---
     signals[df['regime'] == 'Downtrend - Impulse'] = 'Exit Long'
@@ -59,6 +58,7 @@ def generate_signals(df_input: pd.DataFrame, signal_params: dict = None) -> pd.D
     signals[~signals.isin(['Enter Long', 'Exit Long'])] = 'Neutral' 
     
     df['signal'] = signals
+    df['signal_confidence'] = confidence
     
     df.drop(columns=['rsi_5_prev'], inplace=True) 
     

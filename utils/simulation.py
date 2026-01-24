@@ -29,7 +29,7 @@ def run_backtest(
     """
 
     
-    required_cols = ['close', 'signal', 'ATR_14', 'regime', 'datetime']
+    required_cols = ['close', 'signal', 'signal_confidence', 'ATR_14', 'regime', 'datetime']
     if any(col not in df.columns for col in required_cols):
         raise ValueError(f"Input DataFrame is missing one of the required columns: {required_cols}")
 
@@ -52,6 +52,7 @@ def run_backtest(
 
         current_close_price = df.loc[i, 'close']
         signal = df.loc[i, 'signal']
+        confidence = df.loc[i, 'signal_confidence']
         current_atr = df.loc[i, 'ATR_14'] if pd.notna(df.loc[i, 'ATR_14']) else 0.0
 
         # --- LOGIC WHEN IN A POSITION ---
@@ -93,8 +94,8 @@ def run_backtest(
                 
                 current_portfolio_value = df.loc[i, 'portfolio_value']
 
-                # 1. Calculate position size based on risk
-                dollar_amount_to_risk = current_portfolio_value * risk_per_trade_percentage
+                # 1. Calculate position size based on risk, scaled by confidence
+                dollar_amount_to_risk = current_portfolio_value * risk_per_trade_percentage * confidence
                 num_shares_based_on_risk = np.floor(dollar_amount_to_risk / stop_loss_distance_per_share)
                 
                 # 2. Calculate position size based on max investment
@@ -209,7 +210,11 @@ if __name__ == '__main__':
                 'accumulation_vol_z_threshold': trial.suggest_float('accumulation_vol_z_threshold', 0.0, 3.0),
                 'pullback_rsi_5_lt': trial.suggest_int('pullback_rsi_5_lt', 40, 60),
                 'pullback_rsi_14_gt': trial.suggest_int('pullback_rsi_14_gt', 50, 70),
-                'ranging_uptrend_vol_z_threshold': trial.suggest_float('ranging_uptrend_vol_z_threshold', -1.0, 2.0)
+                'ranging_uptrend_vol_z_threshold': trial.suggest_float('ranging_uptrend_vol_z_threshold', -1.0, 2.0),
+                'uptrend_impulse_confidence': trial.suggest_float('uptrend_impulse_confidence', 0.5, 1.0),
+                'accumulation_confidence': trial.suggest_float('accumulation_confidence', 0.5, 1.0),
+                'pullback_confidence': trial.suggest_float('pullback_confidence', 0.5, 1.0),
+                'ranging_uptrend_confidence': trial.suggest_float('ranging_uptrend_confidence', 0.5, 1.0)
             }
 
             # 2. Generate signals with the suggested parameters
@@ -269,7 +274,11 @@ if __name__ == '__main__':
             'accumulation_vol_z_threshold': best_params.get('accumulation_vol_z_threshold'),
             'pullback_rsi_5_lt': best_params.get('pullback_rsi_5_lt'),
             'pullback_rsi_14_gt': best_params.get('pullback_rsi_14_gt'),
-            'ranging_uptrend_vol_z_threshold': best_params.get('ranging_uptrend_vol_z_threshold')
+            'ranging_uptrend_vol_z_threshold': best_params.get('ranging_uptrend_vol_z_threshold'),
+            'uptrend_impulse_confidence': best_params.get('uptrend_impulse_confidence'),
+            'accumulation_confidence': best_params.get('accumulation_confidence'),
+            'pullback_confidence': best_params.get('pullback_confidence'),
+            'ranging_uptrend_confidence': best_params.get('ranging_uptrend_confidence')
         }
         
         final_df_with_signals = generate_signals(df_with_regimes.copy(), signal_params=final_signal_params)
