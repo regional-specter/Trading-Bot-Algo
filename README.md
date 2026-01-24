@@ -1,3 +1,12 @@
+<p align="center">
+  <img 
+    width="719" 
+    height="108" 
+    alt="image" 
+    src="https://github.com/user-attachments/assets/ef0f58bf-de47-4a29-aee9-051fa09b2327"
+  />
+</p>
+
 # Algorithmic Trading Bot: A Machine Learning & Time-Series Exploration 🤖
 
 This project documents my journey into the fascinating world of algorithmic trading, focusing on the application of machine learning, data science, and time-series analysis techniques. The goal is to develop a robust and adaptive trading bot capable of navigating complex financial markets. This endeavor serves as a practical learning experience in quantitative finance, backtesting methodologies, and decision-centric model development.
