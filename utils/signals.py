@@ -1,12 +1,13 @@
-
 import pandas as pd
 
-def generate_signals(df_input: pd.DataFrame) -> pd.DataFrame:
+def generate_signals(df_input: pd.DataFrame, signal_params: dict = None) -> pd.DataFrame:
     """
-    Generates trading signals based on market regimes.
+    Generates trading signals based on market regimes and configurable parameters.
 
     Args:
         df_input (pd.DataFrame): DataFrame containing market data and a 'regime' column.
+        signal_params (dict, optional): A dictionary of parameters to tweak signal logic. 
+                                        If None, default parameters are used.
 
     Returns:
         pd.DataFrame: The input DataFrame with an added 'signal' column.
@@ -14,41 +15,51 @@ def generate_signals(df_input: pd.DataFrame) -> pd.DataFrame:
     if 'regime' not in df_input.columns:
         raise ValueError("Input DataFrame must contain a 'regime' column.")
 
+    if signal_params is None:
+        signal_params = {
+            'uptrend_impulse_vol_z_threshold': 0.0,
+            'accumulation_vol_z_threshold': 0.5,
+            'pullback_rsi_5_lt': 50,
+            'pullback_rsi_14_gt': 60,
+            'ranging_uptrend_vol_z_threshold': 0.0
+        }
+
     df = df_input.copy()
     signals = pd.Series(index=df.index, dtype=str, name='signal').fillna('Neutral')
 
-    # --- Helper features for signal confirmation ---
     df['rsi_5_prev'] = df['rsi_5'].shift(1) 
 
     # --- Entry Signal Logic ---
-    # Case 1: Uptrend Impulse with positive volume momentum
-    signals[(df['regime'] == 'Uptrend - Impulse') & (df['volume_zscore'] > 0.0)] = 'Enter Long'
+    signals[
+        (df['regime'] == 'Uptrend - Impulse') & 
+        (df['volume_zscore'] > signal_params['uptrend_impulse_vol_z_threshold'])
+    ] = 'Enter Long'
     
-    # Case 2: Accumulation with significant volume
-    signals[(df['regime'] == 'Ranging - Accumulation') & (df['volume_zscore'] > 0.5)] = 'Enter Long'
+    signals[
+        (df['regime'] == 'Ranging - Accumulation') & 
+        (df['volume_zscore'] > signal_params['accumulation_vol_z_threshold'])
+    ] = 'Enter Long'
     
-    # Case 3: Uptrend Pullback with RSI recovery
     signals[
         (df['regime'] == 'Uptrend - Pullback') & 
         (df['rsi_5'] > df['rsi_5_prev']) &    
-        (df['rsi_5'] < 50) &                   
-        (df['rsi_14'] > 60)                    
+        (df['rsi_5'] < signal_params['pullback_rsi_5_lt']) &                   
+        (df['rsi_14'] > signal_params['pullback_rsi_14_gt'])                    
     ] = 'Enter Long'
     
-    # Case 4: Ranging with Uptrend Bias and neutral-to-positive volume
-    signals[(df['regime'] == 'Ranging - Uptrend Bias') & (df['volume_zscore'] > 0)] = 'Enter Long'
+    signals[
+        (df['regime'] == 'Ranging - Uptrend Bias') & 
+        (df['volume_zscore'] > signal_params['ranging_uptrend_vol_z_threshold'])
+    ] = 'Enter Long'
 
     # --- Exit Signal Logic ---
-    # Exit on clear, strong reversals or high volatility
     signals[df['regime'] == 'Downtrend - Impulse'] = 'Exit Long'
     signals[df['regime'] == 'Volatile - Choppy'] = 'Exit Long'
 
-    # Neutral signals for all other cases
     signals[~signals.isin(['Enter Long', 'Exit Long'])] = 'Neutral' 
     
     df['signal'] = signals
     
-    # Drop helper feature
     df.drop(columns=['rsi_5_prev'], inplace=True) 
     
     return df

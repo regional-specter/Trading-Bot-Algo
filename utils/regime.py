@@ -5,13 +5,15 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 import warnings
 
-def classify_regimes_with_kmeans(market_data_df: pd.DataFrame, k: int = 7) -> pd.DataFrame:
+def classify_regimes_with_kmeans(market_data_df: pd.DataFrame, k: int = 7, cluster_to_regime_map: dict = None) -> pd.DataFrame:
     """
     Applies K-Means clustering to a DataFrame to determine market regimes.
 
     Args:
         market_data_df (pd.DataFrame): DataFrame containing the market features.
         k (int): The number of clusters (regimes) to find.
+        cluster_to_regime_map (dict, optional): A dictionary to map cluster labels to regime names. 
+                                                If not provided, a default map will be used.
 
     Returns:
         pd.DataFrame: The input DataFrame with an added 'regime' column.
@@ -66,18 +68,18 @@ def classify_regimes_with_kmeans(market_data_df: pd.DataFrame, k: int = 7) -> pd
         'cluster_label'
     )[features_for_clustering].mean()
 
-    # This mapping is derived from the analysis in the notebook.
-    # It might need to be dynamically generated or validated if the data changes significantly.
-    cluster_to_regime_map = {
-        0: 'Ranging - Uptrend Bias', 
-        1: 'Uptrend - Impulse', 
-        2: 'Ranging - Downtrend Bias', 
-        3: 'Downtrend - Impulse', 
-        4: 'Uptrend - Overbought',
-        5: 'Ranging - Accumulation',
-        6: 'Volatile - Choppy',
-        -1: 'Unknown'
-    }
+    # Use the provided map, or the default if not provided.
+    if cluster_to_regime_map is None:
+        cluster_to_regime_map = {
+            0: 'Ranging - Uptrend Bias', 
+            1: 'Uptrend - Impulse', 
+            2: 'Ranging - Downtrend Bias', 
+            3: 'Downtrend - Impulse', 
+            4: 'Uptrend - Overbought',
+            5: 'Ranging - Accumulation',
+            6: 'Volatile - Choppy',
+            -1: 'Unknown'
+        }
     
     market_data_df['regime'] = market_data_df['cluster_label'].map(cluster_to_regime_map).fillna('Unknown')
     

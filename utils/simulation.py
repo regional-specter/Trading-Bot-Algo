@@ -1,6 +1,9 @@
-
+import pandas_ta as ta
 import pandas as pd
 import numpy as np
+import optuna
+from regime import classify_regimes_with_kmeans
+from signals import generate_signals  
 
 def run_backtest(
     df: pd.DataFrame, 
@@ -134,64 +137,131 @@ def run_backtest(
     }
 
 if __name__ == '__main__':
-    from regime import classify_regimes_with_kmeans
-    from signals import generate_signals
-    import pandas_ta as ta
-
+    # --- Data Preparation ---
     try:
         data_file = 'data/market_features.parquet'
         base_df = pd.read_parquet(data_file)
         
         # --- Prepare Data ---
         print("1. Classifying regimes...")
+        # Define the cluster map you derived from Layer 1
+        cluster_to_regime_map = {
+            0: 'Ranging - Uptrend Bias', 
+            1: 'Uptrend - Impulse', 
+            2: 'Ranging - Downtrend Bias',
+            3: 'Downtrend - Impulse', 
+            4: 'Uptrend - Overbought', 
+            5: 'Ranging - Accumulation',
+            6: 'Volatile - Choppy', 
+            -1: 'Unknown'
+        }
+        
         df_with_regimes = classify_regimes_with_kmeans(base_df)
         
-        print("2. Generating signals...")
-        df_with_signals = generate_signals(df_with_regimes)
+        # We will now generate signals inside the optimization loop
+        # print("2. Generating signals...")
+        # df_with_signals = generate_signals(df_with_regimes)
 
-        # Ensure ATR is calculated, as it's needed for the backtest
-        if 'ATR_14' not in df_with_signals.columns:
-            print("Calculating ATR_14...")
-            df_with_signals['ATR_14'] = ta.atr(
-                high=df_with_signals['high'],
-                low=df_with_signals['low'],
-                close=df_with_signals['close'],
+        # Ensure ATR is calculated
+        if 'ATR_14' not in df_with_regimes.columns:
+            df_with_regimes['ATR_14'] = ta.atr(
+                high=df_with_regimes['high'], 
+                low=df_with_regimes['low'],
+                close=df_with_regimes['close'], 
                 length=14
             )
-        df_with_signals.dropna(subset=['ATR_14'], inplace=True)
-        df_with_signals.reset_index(drop=True, inplace=True)
-
-
-        # --- Run Simulations with Different Parameters ---
-        print("\n--- Starting Simulations ---")
-        
-        simulation_params = [
-            {'atr_multiplier': 1.5, 'take_profit_percentage': 0.005},
-            {'atr_multiplier': 2.0, 'take_profit_percentage': 0.0075},
-            {'atr_multiplier': 2.5, 'take_profit_percentage': 0.01},
-            {'atr_multiplier': 3.5, 'take_profit_percentage': 0.000085},
-            {'atr_multiplier': 4.5, 'take_profit_percentage': 0.000095}
-        ]
-        
-        for i, params in enumerate(simulation_params):
-            print(f"\n--- Running Simulation #{i+1} ---")
-            print(f"Parameters: ATR Multiplier={params['atr_multiplier']}, Take Profit={params['take_profit_percentage']:.2%}")
             
+        df_with_regimes.dropna(subset=['ATR_14'], inplace=True)
+        df_with_regimes.reset_index(drop=True, inplace=True)
+
+        # --- Optuna Optimization ---
+        def objective(trial):
+            """
+            This is the function Optuna will try to maximize.
+            It runs a backtest with a set of parameters and returns a performance score.
+            """
+            # 1. Define the search space for your parameters
+            trade_params = {
+                'atr_multiplier': trial.suggest_float('atr_multiplier', 1.0, 4.0),
+                'take_profit_percentage': trial.suggest_float('take_profit_percentage', 0.002, 0.03, log=True)
+            }
+            
+            signal_params = {
+                'uptrend_impulse_vol_z_threshold': trial.suggest_float('uptrend_impulse_vol_z_threshold', -1.0, 2.0),
+                'accumulation_vol_z_threshold': trial.suggest_float('accumulation_vol_z_threshold', 0.0, 3.0),
+                'pullback_rsi_5_lt': trial.suggest_int('pullback_rsi_5_lt', 40, 60),
+                'pullback_rsi_14_gt': trial.suggest_int('pullback_rsi_14_gt', 50, 70),
+                'ranging_uptrend_vol_z_threshold': trial.suggest_float('ranging_uptrend_vol_z_threshold', -1.0, 2.0)
+            }
+
+            # 2. Generate signals with the suggested parameters
+            df_with_signals = generate_signals(df_with_regimes.copy(), signal_params=signal_params)
+            
+            # 3. Run the backtest with the suggested parameters
             results = run_backtest(
-                df=df_with_signals.copy(), # Use a copy to avoid state issues
-                atr_multiplier=params['atr_multiplier'],
-                take_profit_percentage=params['take_profit_percentage']
+                df=df_with_signals,
+                atr_multiplier=trade_params['atr_multiplier'],
+                take_profit_percentage=trade_params['take_profit_percentage']
             )
             
-            print("  Performance Metrics:")
-            print(f"    Final Portfolio Value: ${results['final_portfolio_value']:,.2f}")
-            print(f"    Total Strategy Return: {results['total_return_pct']:.2f}%")
-            print(f"    Max Drawdown:          {results['max_drawdown_pct']:.2f}%")
-            print(f"    Number of Trades:      {len(results['trades_log'])}")
+            # 4. Return the value to be maximized (your objective)
+            profit = results['total_return_pct']
+            drawdown = abs(results['max_drawdown_pct'])
+            
+            if drawdown < 0.1: 
+                drawdown = 0.1
+            
+            score = profit / drawdown 
+            
+            if profit <= 0:
+                return float(profit)
+                
+            return float(score)
+
+        # --- Create and run the optimization study ---
+        print("\n--- Starting Bayesian Optimization with Optuna (200 Trials) ---")
+        study = optuna.create_study(direction='maximize')
+        study.optimize(objective, n_trials=200)
+
+        # --- Print the results ---
+        print("\n--- Optimization Complete ---")
+        print(f"Number of finished trials: {len(study.trials)}")
+        print("Best trial:")
+        best_trial = study.best_trial
+
+        print(f"  Value (Optimized Score): {best_trial.value:.4f}")
+        print("  Best Parameters Found:")
+        for key, value in best_trial.params.items():
+            print(f"    {key}: {value:.4f}")
+
+        # --- Run and display the final backtest with the best parameters ---
+        print("\n--- Running Final Backtest with Best Parameters ---")
+        best_params = best_trial.params
         
-        print(f"\nReference Buy & Hold Return: {results['buy_hold_return_pct']:.2f}%")
+        final_signal_params = {
+            'uptrend_impulse_vol_z_threshold': best_params['uptrend_impulse_vol_z_threshold'],
+            'accumulation_vol_z_threshold': best_params['accumulation_vol_z_threshold'],
+            'pullback_rsi_5_lt': best_params['pullback_rsi_5_lt'],
+            'pullback_rsi_14_gt': best_params['pullback_rsi_14_gt'],
+            'ranging_uptrend_vol_z_threshold': best_params['ranging_uptrend_vol_z_threshold']
+        }
+        
+        final_df_with_signals = generate_signals(df_with_regimes.copy(), signal_params=final_signal_params)
+        
+        final_results = run_backtest(
+            df=final_df_with_signals,
+            atr_multiplier=best_params['atr_multiplier'],
+            take_profit_percentage=best_params['take_profit_percentage']
+        )
+        
+        print("\n  --- Final Performance Metrics ---")
+        print(f"    Final Portfolio Value: ${final_results['final_portfolio_value']:,.2f}")
+        print(f"    Total Strategy Return: {final_results['total_return_pct']:.2f}%")
+        print(f"    Max Drawdown:          {final_results['max_drawdown_pct']:.2f}%")
+        print(f"    Number of Trades:      {len(final_results['trades_log'])}")
+        print(f"\nReference Buy & Hold Return: {final_results['buy_hold_return_pct']:.2f}%")
 
     except FileNotFoundError:
-        print(f"Error: Data file not found. Ensure you are in the project root.")
+        print(f"Error: Data file not found at '{data_file}'. Ensure you are in the project root.")
     except Exception as e:
         print(f"An error occurred: {e}")
