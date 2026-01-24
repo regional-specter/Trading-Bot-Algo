@@ -9,7 +9,7 @@
 
 # Algorithmic Trading Bot: A Machine Learning & Time-Series Exploration 🤖
 
-This project documents my journey into the fascinating world of algorithmic trading, focusing on the application of machine learning, data science, and time-series analysis techniques. The goal is to develop a robust and adaptive trading bot capable of navigating complex financial markets. This endeavor serves as a practical learning experience in quantitative finance, backtesting methodologies, and decision-centric model development.
+This project documents my journey in algorithmic trading, focusing on the application of machine learning, data science, and time-series analysis techniques. The goal is to develop a robust and adaptive trading bot capable of navigating complex financial markets.
 
 ## Core Architecture: The Layered Decision Engine
 
@@ -51,7 +51,7 @@ The iterative nature of simulation allows for the continuous refinement and opti
 
 ## Learning & Future Work
 
-This project is a continuous learning endeavor. Key areas for ongoing development and exploration, derived from continuous review and analysis, include:
+This project is a continuous learning point. Key areas for ongoing development and exploration, derived from continuous review and analysis, include:
 
 ### Layer 1 | Market State & Context Layer (Regime Classification)
 *   **Threshold Tuning (Crucial & Ongoing):** Experiment with RSI and TREND_STRENGTH thresholds for precise regime classification.
