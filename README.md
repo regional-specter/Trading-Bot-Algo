@@ -6,6 +6,8 @@ This project documents my journey into the fascinating world of algorithmic trad
 
 Financial time series present unique challenges, such as non-stationarity, the critical distinction between causality and correlation, and the need for decision-centric learning rather than mere prediction accuracy. Traditional supervised learning often falls short because trading actions directly influence future states through capital allocation and exposure.
 
+<img width="1805" height="1015" alt="image" src="https://github.com/user-attachments/assets/1798cf8b-781b-4d4a-91d4-2687b9a19ab8" />
+
 To address these complexities, the trading bot is designed with a modular, four-layered decision-making architecture :
 
 ### Layer 1 | Market State & Context Layer
