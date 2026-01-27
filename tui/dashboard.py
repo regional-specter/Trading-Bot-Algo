@@ -441,6 +441,10 @@ if __name__ == "__main__":
                         trend_strength_to_display = last_regime_row.get('trend_strength', 0.0)
 
 
+                if DEBUG_MODE:
+                    console.print(f"[{current_datetime.strftime('%H:%M:%S')}] Regime: {regime_to_display:<20}, Signal: {signal_to_display:<15}, Conf: {confidence_to_display:.2f}, Pos: {sim_shares_in_position:.2f}")
+
+
                 # --- Layer 3 & 4: Decision & Risk (simplified for real-time display) ---
                 new_trade_made = False
 
@@ -467,7 +471,7 @@ if __name__ == "__main__":
                         # Find the corresponding BUY trade to update
                         matching_buy_index = -1
                         for trade_idx, trade in enumerate(sim_trades_log):
-                            if trade['Type'] == 'BUY' and 'Exit Date' not in trade: # Find an open BUY trade
+                            if trade['Type'] == 'BUY' and 'Exit Date' not in trade:
                                 matching_buy_index = trade_idx
                                 break
 
@@ -480,7 +484,7 @@ if __name__ == "__main__":
                                 'Signal': signal_to_display if exit_type == 'SELL (Signal)' else exit_type,
                                 'Regime': regime_to_display
                             })
-                        else: # Should not happen if logic is perfect, but for robustness
+                        else:
                             sim_trades_log.append({
                                 'Type': exit_type,
                                 'Entry Date': "N/A", # No matching buy found
@@ -494,6 +498,9 @@ if __name__ == "__main__":
                                 'Regime': regime_to_display
                             })
 
+                        if DEBUG_MODE:
+                            console.print(f"[{current_datetime.strftime('%H:%M:%S')}] --- SELL ({exit_type}) --- Qty: {sim_shares_in_position:.2f}, Price: {current_close_price:.2f}, PnL: {pnl_dollars:+.2f}, Port: {sim_portfolio_value:,.2f}")
+                        
                         sim_shares_in_position, sim_buy_price_per_share, sim_highest_price_since_buy, sim_entry_atr = 0, 0, 0, 0
                         new_trade_made = True
 
@@ -524,6 +531,8 @@ if __name__ == "__main__":
                                 'Signal': signal_to_display,
                                 'Regime': regime_to_display
                             })
+                            if DEBUG_MODE:
+                                console.print(f"[{current_datetime.strftime('%H:%M:%S')}] *** BUY *** Qty: {num_shares_to_buy:.2f}, Price: {current_close_price:.2f}, Port: {sim_portfolio_value:,.2f}, Conf: {confidence_to_display:.2f}")
                             new_trade_made = True
 
                 sim_portfolio_value = sim_cash + (sim_shares_in_position * current_close_price)
