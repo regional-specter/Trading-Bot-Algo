@@ -5,7 +5,7 @@ from rich.console import Console
 from rich.table import Table
 
 # CONFIG
-SYMBOL = "AAPL"
+SYMBOL = "NVDA"
 INTERVAL = "1m"
 PERIOD = "1d"
 ROLLING_WINDOW = 14
